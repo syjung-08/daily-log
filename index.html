@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f3a5f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>나의 하루 — 일정·기록</title>
+<style>
+:root{
+  --bg:#f5f3ee; --card:#ffffff; --ink:#1d2433; --sub:#6b7280; --line:#e6e2d8;
+  --brand:#1f3a5f; --brand2:#2f5d8f; --accent:#c8873a; --ok:#2f7d4f; --err:#b42318;
+  --sun:#c0392b; --sat:#2d6cb5; --chip:#eef2f7; --sel:#1f3a5f; --selink:#fff;
+  --r:14px; --shadow:0 1px 2px rgba(20,30,50,.06),0 4px 14px rgba(20,30,50,.05);
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#14171d; --card:#1d222b; --ink:#e7e9ee; --sub:#9aa3b2; --line:#2c333f;
+    --brand:#8fb4e3; --brand2:#a9c6ec; --chip:#252c37; --sel:#8fb4e3; --selink:#10141a;
+    --sun:#ff8a80; --sat:#82b1ff; --shadow:none}
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Pretendard","Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+  -webkit-text-size-adjust:100%}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer}
+header{position:sticky;top:0;z-index:20;background:var(--brand);color:#fff;
+  padding:calc(env(safe-area-inset-top) + 10px) 14px 10px;display:flex;align-items:center;gap:8px}
+@media (prefers-color-scheme:dark){header{background:#1a2840}}
+header h1{font-size:18px;margin:0;font-weight:700;letter-spacing:-.3px;flex:1;white-space:nowrap}
+.hbtn{background:rgba(255,255,255,.14);border:0;color:#fff;border-radius:10px;padding:7px 11px;font-size:14px}
+.hbtn:active{background:rgba(255,255,255,.25)}
+#status{font-size:12px;padding:4px 9px;border-radius:999px;background:rgba(255,255,255,.16);white-space:nowrap;border:0;color:#fff}
+#status.ok::before{content:"● ";color:#7ee2a1}
+#status.saving::before,#status.loading::before{content:"● ";color:#ffd27a}
+#status.dirty::before{content:"● ";color:#ffd27a}
+#status.err::before{content:"● ";color:#ff9b8f}
+#status.off::before{content:"● ";color:#c9ced8}
+main{max-width:1100px;margin:0 auto;padding:12px 12px calc(env(safe-area-inset-bottom) + 40px);
+  display:grid;gap:12px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:900px){main{grid-template-columns:340px minmax(0,1fr);align-items:start}#calCard{position:sticky;top:70px}}
+.card{min-width:0;background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);border:1px solid var(--line);padding:14px}
+#banner{display:none;max-width:1100px;margin:12px auto 0;padding:0 12px}
+#banner .inner{background:#fff4e5;border:1px solid #f1c27d;color:#6b4300;border-radius:12px;padding:12px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+@media (prefers-color-scheme:dark){#banner .inner{background:#3a2c14;border-color:#7a5a20;color:#ffd99a}}
+#banner .inner span{flex:1;min-width:180px;font-size:14px}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px 12px;font-size:14px}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+@media (prefers-color-scheme:dark){.btn.primary{color:#10141a}}
+.btn.small{padding:5px 9px;font-size:13px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+/* calendar */
+.calhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.calhead b{font-size:17px}
+.iconbtn{border:0;background:var(--chip);border-radius:9px;width:34px;height:34px;font-size:17px;line-height:1}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.dow{text-align:center;font-size:12px;color:var(--sub);padding:4px 0}
+.dow.sun{color:var(--sun)}.dow.sat{color:var(--sat)}
+.cell{position:relative;border:0;background:transparent;border-radius:10px;height:44px;font-size:14px;
+  display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:6px}
+.cell:hover{background:var(--chip)}
+.cell.sun{color:var(--sun)}.cell.sat{color:var(--sat)}
+.cell.today .n{outline:2px solid var(--accent);outline-offset:2px;border-radius:50%}
+.cell .n{width:22px;height:22px;line-height:22px;text-align:center}
+.cell.sel{background:var(--sel);color:var(--selink)}
+.cell .m{font-size:11px;line-height:13px;height:13px}
+.cell .dot{width:5px;height:5px;border-radius:50%;background:var(--brand2);margin-top:4px}
+.cell.sel .dot{background:var(--selink)}
+.callegend{display:flex;justify-content:space-between;margin-top:10px;font-size:12px;color:var(--sub)}
+.linkbtn{border:0;background:none;color:var(--brand2);padding:0;font-size:13px}
+/* day */
+.dayhead{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.dayhead h2{font-size:19px;margin:0;flex:1;letter-spacing:-.3px}
+.todaychip{font-size:11px;background:var(--accent);color:#fff;border-radius:999px;padding:2px 7px;margin-left:6px;vertical-align:middle}
+.moods{display:flex;gap:6px;margin:6px 0 4px;flex-wrap:wrap}
+.mood{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:4px 10px;font-size:14px}
+.mood.on{background:var(--chip);border-color:var(--brand2);font-weight:600}
+section.part{margin-top:16px}
+section.part h3{font-size:14px;margin:0 0 8px;color:var(--sub);font-weight:600;display:flex;align-items:center;gap:8px}
+section.part h3 .cnt{font-weight:400}
+.row{display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px dashed var(--line)}
+.row:last-child{border-bottom:0}
+.row input[type=time]{width:128px;flex:none;border:1px solid transparent;background:var(--chip);border-radius:8px;padding:6px;font-size:15px}
+.row input.title{flex:1;min-width:0;border:1px solid transparent;background:transparent;border-radius:8px;padding:7px 6px;font-size:16px}
+.row input.title:focus,.row input[type=time]:focus{border-color:var(--brand2);outline:none;background:var(--card)}
+.row input[type=checkbox]{width:20px;height:20px;accent-color:var(--brand2);flex:none}
+.row.done input.title{text-decoration:line-through;color:var(--sub)}
+.row.moved input.title{color:var(--sub);font-style:italic}
+.row .tag{font-size:11px;color:var(--sub);white-space:nowrap}
+.del{border:0;background:none;color:var(--sub);font-size:18px;width:30px;height:30px;border-radius:8px;flex:none}
+.del:hover{background:var(--chip);color:var(--err)}
+.add{display:flex;gap:6px;margin-top:8px}
+.add input{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px 10px;font-size:16px}
+.add input.title{flex:1;min-width:0}
+.add input[type=time]{width:128px;flex:none}
+.empty{color:var(--sub);font-size:14px;padding:6px 0}
+textarea#journal{width:100%;min-height:160px;resize:vertical;border:1px solid var(--line);border-radius:12px;
+  padding:12px;font-size:16px;line-height:1.65;background:var(--card)}
+textarea#journal:focus{outline:none;border-color:var(--brand2)}
+.meta{font-size:12px;color:var(--sub);margin-top:6px;display:flex;justify-content:space-between}
+/* overlays */
+.ov{position:fixed;inset:0;background:rgba(10,15,25,.45);z-index:50;display:none;align-items:flex-start;justify-content:center;
+  padding:calc(env(safe-area-inset-top) + 20px) 12px 20px;overflow:auto}
+.ov.on{display:flex}
+.panel{background:var(--card);border-radius:16px;width:100%;max-width:640px;min-width:0;padding:16px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+.panel h2{margin:0 0 4px;font-size:18px;display:flex;align-items:center}
+.panel h2 span{flex:1}
+.opt{border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:10px}
+.opt.on{border-color:var(--brand2);box-shadow:0 0 0 2px color-mix(in srgb,var(--brand2) 25%,transparent)}
+.opt label.t{display:flex;gap:8px;align-items:center;font-weight:600}
+.opt p{margin:6px 0 0 26px;font-size:13px;color:var(--sub);line-height:1.5}
+.opt .body{margin:10px 0 0 26px;display:grid;gap:8px;grid-template-columns:minmax(0,1fr)}
+.fld{display:grid;gap:4px;font-size:13px;color:var(--sub)}
+.fld input,.fld select{width:100%;min-width:0;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:15px;background:var(--card);color:var(--ink)}
+.mono{font-family:ui-monospace,Consolas,monospace;font-size:12px;word-break:break-all;background:var(--chip);padding:6px 8px;border-radius:8px}
+.note{font-size:12.5px;color:var(--sub);line-height:1.55}
+.warn{color:var(--err)}
+details{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
+details summary{cursor:pointer;font-weight:600;font-size:14px}
+details ol{padding-left:20px;font-size:13.5px;line-height:1.65;margin:8px 0}
+#q{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px 12px;font-size:16px;background:var(--card)}
+.res{padding:10px 4px;border-bottom:1px solid var(--line);cursor:pointer}
+.res:hover{background:var(--chip)}
+.res b{font-size:13px;color:var(--brand2)}
+.res div{font-size:14px;margin-top:3px;line-height:1.5}
+mark{background:#ffe7a3;color:inherit;border-radius:3px;padding:0 1px}
+#toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 22px);transform:translateX(-50%);
+  background:#222b38;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;z-index:80;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90vw}
+#toast.on{opacity:1}
+.hide{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <h1>📒 나의 하루</h1>
+  <button id="status" class="off" title="저장 상태">연결 안 됨</button>
+  <button class="hbtn" id="bToday">오늘</button>
+  <button class="hbtn" id="bSearch" aria-label="검색">🔍</button>
+  <button class="hbtn" id="bSet" aria-label="설정">⚙︎</button>
+</header>
+<div id="banner"><div class="inner"><span id="bannerMsg"></span><button class="btn primary small" id="bannerBtn"></button></div></div>
+
+<main>
+  <div class="card" id="calCard">
+    <div class="calhead">
+      <button class="iconbtn" id="mPrev" aria-label="이전 달">‹</button>
+      <b id="mTitle"></b>
+      <button class="iconbtn" id="mNext" aria-label="다음 달">›</button>
+    </div>
+    <div class="grid" id="cal"></div>
+    <div class="callegend"><span id="where">저장 위치: -</span><button class="linkbtn" id="bThisMonth">이번 달</button></div>
+  </div>
+
+  <div class="card" id="dayCard">
+    <div class="dayhead">
+      <button class="iconbtn" id="dPrev" aria-label="전날">‹</button>
+      <h2 id="dTitle"></h2>
+      <button class="iconbtn" id="dNext" aria-label="다음날">›</button>
+    </div>
+    <div class="moods" id="moods"></div>
+
+    <section class="part">
+      <h3>🕘 일정 <span class="cnt" id="evCnt"></span></h3>
+      <div id="evList"></div>
+      <div class="add">
+        <input type="time" id="evTime" aria-label="시간">
+        <input class="title" id="evTitle" placeholder="일정 추가 (예: 고객 미팅)" enterkeyhint="done">
+        <button class="btn primary" id="evAdd">추가</button>
+      </div>
+    </section>
+
+    <section class="part">
+      <h3>✅ 할 일 <span class="cnt" id="tdCnt"></span>
+        <button class="linkbtn" id="carry" style="margin-left:auto"></button></h3>
+      <div id="tdList"></div>
+      <div class="add">
+        <input class="title" id="tdTitle" placeholder="할 일 추가" enterkeyhint="done">
+        <button class="btn primary" id="tdAdd">추가</button>
+      </div>
+    </section>
+
+    <section class="part">
+      <h3>✍️ 기록·일기</h3>
+      <textarea id="journal" placeholder="오늘 있었던 일, 생각, 메모를 자유롭게 적어 두세요."></textarea>
+      <div class="meta"><span id="jCount"></span><span id="jTime"></span></div>
+    </section>
+  </div>
+</main>
+
+<!-- 검색 -->
+<div class="ov" id="ovSearch"><div class="panel">
+  <h2><span>🔍 기록 검색</span><button class="iconbtn" data-close>✕</button></h2>
+  <input id="q" placeholder="일정·할 일·일기에서 찾기" autocomplete="off">
+  <div class="note" id="qInfo" style="margin:6px 2px"></div>
+  <div id="qRes"></div>
+</div></div>
+
+<!-- 설정 -->
+<div class="ov" id="ovSet"><div class="panel">
+  <h2><span>⚙︎ 저장 위치·설정</span><button class="iconbtn" data-close>✕</button></h2>
+  <div class="note">어느 기기에서 쓰든 OneDrive의 <b>앱 전용 폴더</b>(<span class="mono">OneDrive\Apps\나의하루</span>)에 있는 월별 데이터 파일(<span class="mono">2026-11.json</span> 형식)을 읽고 씁니다. 앱은 이 폴더 밖의 사진·문서에는 접근하지 않습니다.</div>
+
+  <div class="opt" data-mode="folder">
+    <label class="t"><input type="radio" name="mode" value="folder"> PC 폴더 — OneDrive 동기화 폴더</label>
+    <p>회사·집 PC용. 설치·로그인 없이 바로 사용. Edge 또는 Chrome에서 이 파일을 열어 사용합니다.</p>
+    <div class="body">
+      <div id="fsUnsupported" class="note warn hide">이 브라우저는 폴더 직접 저장을 지원하지 않습니다. PC의 Edge·Chrome을 쓰거나, 아래 'OneDrive 클라우드'를 사용하세요.</div>
+      <div><button class="btn primary small" id="pickFolder">폴더 선택</button> <span class="note" id="folderName"></span></div>
+      <div class="note">앱 전용 폴더를 선택하세요. 예: <span class="mono">C:\Users\이름\OneDrive\Apps\나의하루</span><br>이 폴더는 휴대폰 등에서 <b>처음 Microsoft 로그인할 때 자동으로 생성</b>됩니다. 'Apps'가 '앱'으로 보일 수 있습니다.</div>
+    </div>
+  </div>
+
+  <div class="opt" data-mode="cloud">
+    <label class="t"><input type="radio" name="mode" value="cloud"> OneDrive 클라우드 — Microsoft 로그인</label>
+    <p>휴대폰·태블릿·어느 PC든 사용. 앱을 웹 주소(https)에 올리고 1회 설정이 필요합니다(아래 안내).</p>
+    <div class="body">
+      <div id="httpsNeeded" class="note warn hide">지금은 파일(file://)로 열려 있어 클라우드 로그인을 쓸 수 없습니다. 웹 주소(https)로 연 화면에서 설정하세요.</div>
+      <label class="fld">애플리케이션(클라이언트) ID
+        <input id="clientId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" spellcheck="false"></label>
+      <label class="fld">계정 유형
+        <select id="tenant"><option value="consumers">개인 Microsoft 계정 (M365 Family 등)</option><option value="common">회사/학교 + 개인 계정</option></select></label>
+      <div class="note">데이터 위치: <span class="mono" id="appFolder">로그인하면 표시됩니다</span></div>
+      <div class="note">리디렉션 URI(앱 등록 시 'SPA'로 입력): <div class="mono" id="redir"></div></div>
+      <div><button class="btn primary small" id="login">Microsoft 로그인</button> <button class="btn small" id="logout">로그아웃</button> <span class="note" id="loginState"></span></div>
+    </div>
+  </div>
+
+  <div class="opt" data-mode="demo">
+    <label class="t"><input type="radio" name="mode" value="demo"> 체험 모드 — 이 브라우저에만 저장</label>
+    <p>기기 간 동기화 없음. 써 보고 나중에 '백업 가져오기'로 옮길 수 있습니다.</p>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+    <button class="btn small" id="exportBtn">⬇︎ 전체 백업 받기</button>
+    <label class="btn small">⬆︎ 백업 가져오기(병합)<input type="file" id="importFile" accept=".json,application/json" class="hide"></label>
+  </div>
+
+  <details>
+    <summary>📘 설정 안내</summary>
+    <b style="font-size:13.5px">A. 회사·집 PC (바로 사용)</b>
+    <ol>
+      <li>이 파일을 OneDrive 폴더에 저장합니다(두 PC에 자동 동기화).</li>
+      <li>B의 Microsoft 로그인을 한 번 마치면 OneDrive에 <b>Apps\나의하루</b> 폴더가 생깁니다(먼저 B를 진행).</li>
+      <li>이 파일을 Edge·Chrome으로 열고 → 설정 → 'PC 폴더' → 폴더 선택 → <span class="mono">OneDrive\Apps\나의하루</span> 지정.</li>
+      <li>브라우저를 다시 켜면 상단에 '폴더 접근 허용' 버튼이 뜹니다. 한 번 눌러 주면 됩니다.</li>
+    </ol>
+    <b style="font-size:13.5px">B. 휴대폰·태블릿 (1회 설정)</b>
+    <ol>
+      <li>이 파일을 <b>index.html</b>로 이름을 바꿔 https 주소에 올립니다(예: GitHub Pages 무료).</li>
+      <li>Azure 포털 → Microsoft Entra ID → 앱 등록 → 새 등록. 이름: <b>나의하루</b>(이 이름으로 앱 전용 폴더가 생깁니다). 계정 유형: <b>개인 Microsoft 계정만</b>. 리디렉션 URI: 플랫폼 <b>단일 페이지 애플리케이션(SPA)</b>, 주소는 위 '리디렉션 URI'와 동일.<br><span class="note">개인 계정만 있으면 Azure 무료 계정 가입(디렉터리 생성)이 먼저 필요합니다.</span></li>
+      <li>API 사용 권한 → Microsoft Graph → 위임된 권한 → <b>Files.ReadWrite.AppFolder</b> 추가(앱 전용 폴더만 접근).</li>
+      <li>개요 화면의 '애플리케이션(클라이언트) ID'를 위 칸에 붙여 넣고 → Microsoft 로그인.</li>
+      <li>휴대폰 Chrome 메뉴 → '홈 화면에 추가'로 앱처럼 사용합니다.</li>
+    </ol>
+    <div class="note">동시 편집 시 항목 단위로 최신 내용을 병합합니다. OneDrive가 만든 충돌 사본(예: <span class="mono">2026-11-PC이름.json</span>)도 자동으로 합친 뒤 정리합니다.</div>
+  </details>
+</div></div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* ---------- 공통 ---------- */
+const $ = s => document.querySelector(s);
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parseYmd = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const ymOf = s => s.slice(0, 7);
+const addDays = (s, n) => { const d = parseYmd(s); d.setDate(d.getDate() + n); return ymd(d); };
+const addMonths = (ym, n) => { const [y, m] = ym.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
+const now = () => Date.now();
+const uid = () => { try { return crypto.randomUUID(); } catch (e) { return now().toString(36) + Math.random().toString(36).slice(2, 10); } };
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const WD = ['일', '월', '화', '수', '목', '금', '토'];
+const MOODS = [['😀', '좋음'], ['🙂', '무난'], ['😐', '보통'], ['😟', '걱정'], ['😫', '힘듦']];
+function lsGet(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
+function lsSet(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } }
+function toast(msg, ms = 2200) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('on'), ms); }
+function hhmm(ts) { const d = new Date(ts); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+
+/* ---------- 설정 ---------- */
+const DEF = { mode: '', clientId: '', tenant: 'consumers', appFolder: null };
+let S = Object.assign({}, DEF, lsGet('dl_settings') || {});
+const saveSettings = () => lsSet('dl_settings', S);
+
+/* ---------- IndexedDB (폴더 핸들 보관) ---------- */
+const idb = {
+  p: null,
+  open() { return this.p || (this.p = new Promise((res, rej) => { const r = indexedDB.open('dailylog', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); })); },
+  async get(k) { const db = await this.open(); return new Promise((res, rej) => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); },
+  async set(k, v) { const db = await this.open(); return new Promise((res, rej) => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }); }
+};
+
+/* ---------- 저장소 1: PC 폴더 ---------- */
+const FolderStore = {
+  dir: null,
+  supported: () => 'showDirectoryPicker' in window,
+  async init() {
+    if (!this.supported()) return 'unsupported';
+    this.dir = await idb.get('dirHandle').catch(() => null);
+    if (!this.dir) return 'nofolder';
+    const p = await this.dir.queryPermission({ mode: 'readwrite' });
+    return p === 'granted' ? 'ok' : 'needperm';
+  },
+  async pick() { const h = await window.showDirectoryPicker({ id: 'dailylog', mode: 'readwrite' }); await idb.set('dirHandle', h); this.dir = h; },
+  async regrant() { return (await this.dir.requestPermission({ mode: 'readwrite' })) === 'granted'; },
+  label() { return this.dir ? '📁 ' + this.dir.name : 'PC 폴더'; },
+  async list() { const o = []; for await (const [n, h] of this.dir.entries()) if (h.kind === 'file' && n.endsWith('.json')) o.push(n); return o; },
+  async read(n) { try { const f = await (await this.dir.getFileHandle(n)).getFile(); return await f.text(); } catch (e) { if (e.name === 'NotFoundError') return null; throw e; } },
+  async write(n, t) { const fh = await this.dir.getFileHandle(n, { create: true }); const w = await fh.createWritable(); await w.write(t); await w.close(); },
+  async remove(n) { await this.dir.removeEntry(n); }
+};
+
+/* ---------- 저장소 2: OneDrive 클라우드 (Microsoft Graph, PKCE) ---------- */
+function b64url(bytes) { let s = ''; bytes.forEach(b => s += String.fromCharCode(b)); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+function needLogin() { const e = new Error('OneDrive 로그인이 필요합니다'); e.code = 'LOGIN'; return e; }
+const Auth = {
+  SCOPE: 'Files.ReadWrite.AppFolder offline_access',
+  get tok() { return lsGet('dl_tok'); }, set tok(v) { lsSet('dl_tok', v); },
+  redirectUri() { return location.origin + location.pathname.replace(/index\.html?$/i, ''); },  // .../index.html 과 .../ 를 같은 주소로
+  base() { return `https://login.microsoftonline.com/${S.tenant || 'consumers'}/oauth2/v2.0`; },
+  async login() {
+    const v = b64url(crypto.getRandomValues(new Uint8Array(48)));
+    const ch = b64url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v))));
+    const st = b64url(crypto.getRandomValues(new Uint8Array(16)));
+    sessionStorage.setItem('dl_pkce', JSON.stringify({ v, st }));
+    const p = new URLSearchParams({ client_id: S.clientId, response_type: 'code', redirect_uri: this.redirectUri(), response_mode: 'query', scope: this.SCOPE, code_challenge: ch, code_challenge_method: 'S256', state: st, prompt: 'select_account' });
+    location.href = this.base() + '/authorize?' + p;
+  },
+  async handleRedirect() {
+    const q = new URLSearchParams(location.search);
+    if (!q.has('code') && !q.has('error')) return false;
+    history.replaceState(null, '', location.pathname);
+    if (q.has('error')) throw new Error('로그인 실패: ' + (q.get('error_description') || q.get('error')));
+    const saved = JSON.parse(sessionStorage.getItem('dl_pkce') || 'null');
+    sessionStorage.removeItem('dl_pkce');
+    if (!saved || saved.st !== q.get('state')) throw new Error('로그인 확인값이 맞지 않습니다. 다시 로그인해 주세요.');
+    await this.tokenReq({ grant_type: 'authorization_code', code: q.get('code'), redirect_uri: this.redirectUri(), code_verifier: saved.v });
+    return true;
+  },
+  async tokenReq(params) {
+    const body = new URLSearchParams(Object.assign({ client_id: S.clientId, scope: this.SCOPE }, params));
+    const r = await fetch(this.base() + '/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error_description || j.error || ('토큰 오류 ' + r.status));
+    const old = this.tok || {};
+    this.tok = { at: j.access_token, rt: j.refresh_token || old.rt, exp: now() + (j.expires_in || 3600) * 1000 };
+  },
+  async token(force) {
+    const t = this.tok; if (!t) throw needLogin();
+    if (!force && t.exp - 120000 > now()) return t.at;
+    if (!t.rt) throw needLogin();
+    try { await this.tokenReq({ grant_type: 'refresh_token', refresh_token: t.rt }); }
+    catch (e) { this.tok = null; throw needLogin(); }
+    return this.tok.at;
+  }
+};
+// 앱 전용 폴더(OneDrive/Apps/<앱 이름>) — 첫 접근 시 자동 생성, 이 폴더 밖은 접근 불가
+const G = 'https://graph.microsoft.com/v1.0/me/drive/special/approot';
+async function gErr(r) { let m = r.status; try { const j = await r.json(); m = (j.error && j.error.message) || m; } catch (e) { } return new Error('OneDrive 오류: ' + m); }
+const CloudStore = {
+  async init() {
+    if (location.protocol === 'file:') return 'needhttps';
+    if (!S.clientId) return 'noclient';
+    if (!Auth.tok) return 'nologin';
+    return 'ok';
+  },
+  label() { return '☁️ OneDrive/' + (S.appFolder ? 'Apps/' + S.appFolder.name : '앱 전용 폴더'); },
+  async api(url, opt = {}, retry = true) {
+    const at = await Auth.token();
+    const r = await fetch(url, Object.assign({ cache: 'no-store' }, opt, { headers: Object.assign({ Authorization: 'Bearer ' + at }, opt.headers || {}) }));
+    if (r.status === 401 && retry) { await Auth.token(true); return this.api(url, opt, false); }
+    return r;
+  },
+  async info() {  // 앱 폴더 생성 겸 이름 확인
+    const r = await this.api(`${G}?$select=name,webUrl`);
+    if (!r.ok) throw await gErr(r);
+    const j = await r.json(); S.appFolder = { name: j.name, webUrl: j.webUrl }; saveSettings();
+  },
+  async list() {
+    const r = await this.api(`${G}/children?$select=name,file&$top=999`);
+    if (r.status === 404) return [];
+    if (!r.ok) throw await gErr(r);
+    return (await r.json()).value.filter(x => x.file && x.name.endsWith('.json')).map(x => x.name);
+  },
+  async read(n) {
+    const r = await this.api(`${G}:/${encodeURIComponent(n)}`);
+    if (r.status === 404) return null;
+    if (!r.ok) throw await gErr(r);
+    const url = (await r.json())['@microsoft.graph.downloadUrl'];
+    let r2 = null;
+    if (url) { try { r2 = await fetch(url, { cache: 'no-store' }); } catch (e) { r2 = null; } }
+    if (!r2 || !r2.ok) r2 = await this.api(`${G}:/${encodeURIComponent(n)}:/content`);
+    if (!r2.ok) throw await gErr(r2);
+    return await r2.text();
+  },
+  async write(n, t) {
+    const r = await this.api(`${G}:/${encodeURIComponent(n)}:/content`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: t });
+    if (!r.ok) throw await gErr(r);
+  },
+  async remove(n) { const r = await this.api(`${G}:/${encodeURIComponent(n)}`, { method: 'DELETE' }); if (!r.ok && r.status !== 404) throw await gErr(r); }
+};
+
+/* ---------- 저장소 3: 체험 ---------- */
+const DemoStore = {
+  async init() { return 'ok'; }, label() { return '🧪 이 브라우저(체험)'; },
+  async list() { const o = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith('dl_demo_')) o.push(k.slice(8)); } return o; },
+  async read(n) { return localStorage.getItem('dl_demo_' + n); },
+  async write(n, t) { localStorage.setItem('dl_demo_' + n, t); },
+  async remove(n) { localStorage.removeItem('dl_demo_' + n); }
+};
+const STORES = { folder: FolderStore, cloud: CloudStore, demo: DemoStore };
+
+/* ---------- 데이터 모델 & 병합 ----------
+ 월 파일: { app:'dailylog', v:1, month:'2026-11', days:{ '2026-11-08': { journal:{t,u}, mood:{v,u}, items:{ id:{id,kind:'event'|'todo',time,title,done,moved,src,u,del} } } } }
+ u = 마지막 수정 시각(ms). 병합 시 항목별로 u가 큰 쪽 채택, 삭제는 del 표시(tombstone)로 전파. */
+const emptyMonth = ym => ({ app: 'dailylog', v: 1, month: ym, days: {} });
+const pick = (a, b) => (!a ? b : !b ? a : ((b.u || 0) > (a.u || 0) ? b : a));
+function mergeDay(x, y) {
+  if (!x) return y; if (!y) return x;
+  const items = Object.assign({}, x.items);
+  for (const id in (y.items || {})) items[id] = pick(items[id], y.items[id]);
+  return { journal: pick(x.journal, y.journal), mood: pick(x.mood, y.mood), items };
+}
+function mergeMonth(a, b) {
+  if (!a) return b; if (!b) return a;
+  const days = Object.assign({}, a.days);
+  for (const d in (b.days || {})) days[d] = mergeDay(days[d], b.days[d]);
+  return { app: 'dailylog', v: 1, month: a.month || b.month, days };
+}
+function parseMonth(txt, name) {
+  let o; try { o = JSON.parse(txt); } catch (e) { throw new Error(`${name} 파일을 읽을 수 없습니다(동기화 중이거나 손상). 잠시 후 다시 시도합니다.`); }
+  if (!o || o.app !== 'dailylog' || !o.days) throw new Error(`${name}은(는) 이 앱의 데이터 파일이 아닙니다.`);
+  return o;
+}
+const fileOf = ym => ym + '.json';
+const MAIN_RE = /^\d{4}-\d{2}\.json$/;
+const CONFLICT_RE = /^(\d{4}-\d{2})(.+)\.json$/;
+
+const Data = {
+  store: null, months: {}, loaded: new Set(), dirty: new Set(), rev: {}, saving: false, ready: false,
+  reset() { this.months = {}; this.loaded = new Set(); this.dirty = new Set(); this.rev = {}; this.ready = false; },
+  month(ym) { return this.months[ym] || (this.months[ym] = emptyMonth(ym)); },
+  day(date) { const m = this.months[ymOf(date)]; return m ? m.days[date] : null; },
+  ensureDay(date) { const m = this.month(ymOf(date)); return m.days[date] || (m.days[date] = { journal: { t: '', u: 0 }, mood: { v: '', u: 0 }, items: {} }); },
+  touch(date) { const ym = ymOf(date); this.dirty.add(ym); this.rev[ym] = (this.rev[ym] || 0) + 1; savePending(); setStatus('dirty'); scheduleSave(); },
+  async load(ym, force) {
+    if (!this.ready || (this.loaded.has(ym) && !force)) return;
+    const txt = await this.store.read(fileOf(ym));
+    if (txt) this.months[ym] = mergeMonth(parseMonth(txt, fileOf(ym)), this.months[ym]);
+    this.loaded.add(ym);
+  }
+};
+// 저장 전 내용 보존(브라우저 종료·오프라인 대비)
+const pendKey = () => 'dl_pending_' + S.mode;
+function savePending() { const o = {}; Data.dirty.forEach(ym => o[ym] = Data.months[ym]); lsSet(pendKey(), Object.keys(o).length ? o : null); }
+function restorePending() { const o = lsGet(pendKey()); if (!o) return; for (const ym in o) { Data.months[ym] = mergeMonth(Data.months[ym], o[ym]); Data.dirty.add(ym); Data.rev[ym] = 1; } }
+
+let saveTimer = null;
+function scheduleSave(ms = 1200) { clearTimeout(saveTimer); saveTimer = setTimeout(flush, ms); }
+async function flush() {
+  if (Data.saving || !Data.dirty.size || !Data.ready) return;
+  Data.saving = true; setStatus('saving');
+  try {
+    for (const ym of [...Data.dirty]) {
+      const rev0 = Data.rev[ym];
+      const txt = await Data.store.read(fileOf(ym));
+      const remote = txt ? parseMonth(txt, fileOf(ym)) : null;
+      const merged = mergeMonth(remote, Data.months[ym]);
+      merged.savedAt = new Date().toISOString();
+      await Data.store.write(fileOf(ym), JSON.stringify(merged));
+      Data.months[ym] = mergeMonth(merged, Data.months[ym]);
+      Data.loaded.add(ym);
+      if (Data.rev[ym] === rev0) Data.dirty.delete(ym);
+    }
+    savePending();
+    Data.lastSaved = now();
+    setStatus(Data.dirty.size ? 'dirty' : 'ok');
+    renderCal();
+  } catch (e) {
+    handleErr(e);
+  } finally {
+    Data.saving = false;
+    if (Data.dirty.size && statusState !== 'err') scheduleSave(800);
+    else if (Data.dirty.size) scheduleSave(15000);
+  }
+}
+async function absorbConflicts() {
+  let names; try { names = await Data.store.list(); } catch (e) { return; }
+  const found = [];
+  for (const n of names) {
+    const m = n.match(CONFLICT_RE); if (!m || MAIN_RE.test(n)) continue;
+    try {
+      const t = await Data.store.read(n); if (!t) continue;
+      const o = parseMonth(t, n); const ym = m[1];
+      await Data.load(ym);
+      Data.months[ym] = mergeMonth(Data.months[ym], o);
+      Data.dirty.add(ym); Data.rev[ym] = (Data.rev[ym] || 0) + 1;
+      found.push(n);
+    } catch (e) { }
+  }
+  if (!found.length) return;
+  await flush();
+  if (!Data.dirty.size) { for (const n of found) { try { await Data.store.remove(n); } catch (e) { } } toast(`충돌 사본 ${found.length}개를 병합했습니다`); renderAll(); }
+}
+
+/* ---------- 상태 표시 ---------- */
+let statusState = 'off', lastErr = '';
+function setStatus(st, msg) {
+  statusState = st; const el = $('#status'); el.className = st;
+  el.textContent = { off: '연결 안 됨', loading: '불러오는 중', saving: '저장 중…', dirty: '저장 대기', ok: '저장됨' + (Data.lastSaved ? ' ' + hhmm(Data.lastSaved) : ''), err: '오류' }[st] || st;
+  if (msg) lastErr = msg;
+}
+function handleErr(e) {
+  console.error(e);
+  if (e && e.code === 'LOGIN') { setStatus('err', e.message); banner('OneDrive 로그인이 만료되었습니다. 입력한 내용은 이 기기에 보관 중입니다.', 'Microsoft 로그인', () => Auth.login()); return; }
+  if (!navigator.onLine) { setStatus('dirty'); lastErr = '오프라인 — 연결되면 자동 저장합니다.'; return; }
+  setStatus('err', (e && e.message) || String(e));
+}
+function banner(msg, btn, fn) {
+  const b = $('#banner'); if (!msg) { b.style.display = 'none'; return; }
+  $('#bannerMsg').textContent = msg; const bb = $('#bannerBtn');
+  bb.textContent = btn || ''; bb.classList.toggle('hide', !btn); bb.onclick = fn || null; b.style.display = 'block';
+}
+
+/* ---------- 화면 ---------- */
+let cur = ymd(new Date()), viewYm = ymOf(cur);
+function dayHasContent(d) {
+  if (!d) return false;
+  if (d.journal && d.journal.t && d.journal.t.trim()) return true;
+  return Object.values(d.items || {}).some(i => !i.del);
+}
+function renderCal() {
+  const [y, m] = viewYm.split('-').map(Number);
+  $('#mTitle').textContent = `${y}년 ${m}월`;
+  const first = new Date(y, m - 1, 1).getDay(), last = new Date(y, m, 0).getDate(), today = ymd(new Date());
+  let h = WD.map((w, i) => `<div class="dow ${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}">${w}</div>`).join('');
+  for (let i = 0; i < first; i++) h += '<div></div>';
+  for (let d = 1; d <= last; d++) {
+    const ds = `${viewYm}-${pad(d)}`, wd = (first + d - 1) % 7, day = Data.day(ds);
+    const mood = day && day.mood && day.mood.v;
+    const cls = ['cell', wd === 0 ? 'sun' : wd === 6 ? 'sat' : '', ds === today ? 'today' : '', ds === cur ? 'sel' : ''].join(' ');
+    h += `<button class="${cls}" data-d="${ds}"><span class="n">${d}</span>${mood ? `<span class="m">${mood}</span>` : dayHasContent(day) ? '<span class="dot"></span>' : ''}</button>`;
+  }
+  $('#cal').innerHTML = h;
+  $('#where').textContent = '저장 위치: ' + (Data.store ? Data.store.label() : '미설정');
+}
+function itemsOf(date, kind) {
+  const d = Data.day(date); if (!d) return [];
+  return Object.values(d.items).filter(i => !i.del && i.kind === kind);
+}
+function renderDay() {
+  const dt = parseYmd(cur), isToday = cur === ymd(new Date());
+  $('#dTitle').innerHTML = `${dt.getFullYear()}년 ${dt.getMonth() + 1}월 ${dt.getDate()}일 (${WD[dt.getDay()]})${isToday ? '<span class="todaychip">오늘</span>' : ''}`;
+  const d = Data.day(cur), mv = d && d.mood ? d.mood.v : '';
+  $('#moods').innerHTML = MOODS.map(([e, l]) => `<button class="mood ${mv === e ? 'on' : ''}" data-m="${e}">${e} ${l}</button>`).join('');
+  // 일정
+  const ev = itemsOf(cur, 'event').sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99') || (a.c || 0) - (b.c || 0));
+  $('#evCnt').textContent = ev.length ? ev.length + '건' : '';
+  $('#evList').innerHTML = ev.length ? ev.map(i => `<div class="row" data-id="${i.id}">
+      <input type="time" value="${esc(i.time || '')}" data-f="time" aria-label="시간">
+      <input class="title" value="${esc(i.title)}" data-f="title">
+      <button class="del" data-del title="삭제">×</button></div>`).join('') : '<div class="empty">등록된 일정이 없습니다.</div>';
+  // 할 일
+  const td = itemsOf(cur, 'todo').sort((a, b) => (!!a.moved - !!b.moved) || (!!a.done - !!b.done) || (a.c || 0) - (b.c || 0));
+    const live = td.filter(i => !i.moved); $('#tdCnt').textContent = live.length ? `${live.filter(i => i.done).length}/${live.length} 완료` : '';
+  $('#tdList').innerHTML = td.length ? td.map(i => `<div class="row ${i.done ? 'done' : ''} ${i.moved ? 'moved' : ''}" data-id="${i.id}">
+      <input type="checkbox" ${i.done ? 'checked' : ''} ${i.moved ? 'disabled' : ''} data-f="done" aria-label="완료">
+      <input class="title" value="${esc(i.title)}" data-f="title">
+      ${i.moved ? `<span class="tag">→ ${Number(i.moved.slice(5, 7))}/${Number(i.moved.slice(8))} 이월</span>` : i.src ? '<span class="tag">↩︎ 이월</span>' : ''}
+      <button class="del" data-del title="삭제">×</button></div>`).join('') : '<div class="empty">할 일이 없습니다.</div>';
+  // 이월 버튼
+  const prev = addDays(cur, -1), carry = itemsOf(prev, 'todo').filter(i => !i.done && !i.moved);
+  const cb = $('#carry'); cb.textContent = carry.length ? `어제 미완료 ${carry.length}개 가져오기` : ''; cb.classList.toggle('hide', !carry.length);
+  // 일기
+  const ta = $('#journal'); if (document.activeElement !== ta) ta.value = d && d.journal ? d.journal.t : '';
+  autoGrow(ta); jMeta();
+}
+function jMeta() {
+  const d = Data.day(cur), t = $('#journal').value;
+  $('#jCount').textContent = t ? t.length.toLocaleString() + '자' : '';
+  $('#jTime').textContent = d && d.journal && d.journal.u ? '수정 ' + new Date(d.journal.u).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+}
+function autoGrow(ta) { ta.style.height = 'auto'; ta.style.height = Math.max(160, ta.scrollHeight + 4) + 'px'; }
+function renderAll() { renderCal(); renderDay(); }
+
+async function ensureLoaded(...yms) {
+  if (!Data.ready) return;
+  try { for (const ym of yms) await Data.load(ym); } catch (e) { handleErr(e); }
+}
+async function goDate(ds) {
+  cur = ds; viewYm = ymOf(ds); renderAll();
+  await ensureLoaded(ymOf(ds), ymOf(addDays(ds, -1)));
+  renderAll();
+}
+
+/* ---------- 편집 ---------- */
+function upsertItem(date, id, patch) {
+  const day = Data.ensureDay(date), old = day.items[id];
+  day.items[id] = Object.assign({}, old, patch, { u: now() });
+  Data.touch(date);
+}
+function addItem(kind, title, time) {
+  title = title.trim(); if (!title) return;
+  const id = uid(); upsertItem(cur, id, { id, kind, title, time: time || '', done: false, c: now() });
+  renderAll();
+}
+function bindUI() {
+  $('#cal').addEventListener('click', e => { const b = e.target.closest('[data-d]'); if (b) goDate(b.dataset.d); });
+  $('#mPrev').onclick = async () => { viewYm = addMonths(viewYm, -1); renderCal(); await ensureLoaded(viewYm); renderCal(); };
+  $('#mNext').onclick = async () => { viewYm = addMonths(viewYm, 1); renderCal(); await ensureLoaded(viewYm); renderCal(); };
+  $('#dPrev').onclick = () => goDate(addDays(cur, -1));
+  $('#dNext').onclick = () => goDate(addDays(cur, 1));
+  $('#bToday').onclick = $('#bThisMonth').onclick = () => goDate(ymd(new Date()));
+  $('#moods').addEventListener('click', e => {
+    const b = e.target.closest('[data-m]'); if (!b) return;
+    const d = Data.ensureDay(cur); d.mood = { v: d.mood && d.mood.v === b.dataset.m ? '' : b.dataset.m, u: now() };
+    Data.touch(cur); renderAll();
+  });
+  $('#evAdd').onclick = () => { addItem('event', $('#evTitle').value, $('#evTime').value); $('#evTitle').value = ''; $('#evTime').value = ''; $('#evTitle').focus(); };
+  $('#evTitle').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) $('#evAdd').click(); });
+  $('#tdAdd').onclick = () => { addItem('todo', $('#tdTitle').value); $('#tdTitle').value = ''; $('#tdTitle').focus(); };
+  $('#tdTitle').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) $('#tdAdd').click(); });
+  for (const sel of ['#evList', '#tdList']) {
+    const box = $(sel);
+    box.addEventListener('change', e => {
+      const row = e.target.closest('[data-id]'); if (!row) return; const f = e.target.dataset.f;
+      if (f === 'done') { upsertItem(cur, row.dataset.id, { done: e.target.checked }); renderAll(); }
+      else if (f === 'time') { upsertItem(cur, row.dataset.id, { time: e.target.value }); renderDay(); }
+      else if (f === 'title') { const v = e.target.value.trim(); if (v) upsertItem(cur, row.dataset.id, { title: v }); else renderDay(); }
+    });
+    box.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing && e.target.matches('input.title')) e.target.blur(); });
+    box.addEventListener('click', e => {
+      if (!e.target.closest('[data-del]')) return; const row = e.target.closest('[data-id]');
+      upsertItem(cur, row.dataset.id, { del: true }); renderAll(); toast('삭제했습니다');
+    });
+  }
+  $('#carry').onclick = () => {
+    const prev = addDays(cur, -1), list = itemsOf(prev, 'todo').filter(i => !i.done && !i.moved);
+    const have = new Set(itemsOf(cur, 'todo').map(i => i.src).filter(Boolean));
+    for (const i of list) {
+      if (!have.has(i.id)) { const id = uid(); upsertItem(cur, id, { id, kind: 'todo', title: i.title, time: '', done: false, src: i.id, c: now() }); }
+      upsertItem(prev, i.id, { moved: cur });
+    }
+    renderAll(); toast(`${list.length}개를 가져왔습니다`);
+  };
+  const ta = $('#journal');
+  ta.addEventListener('input', () => {
+    const d = Data.ensureDay(cur); d.journal = { t: ta.value, u: now() };
+    autoGrow(ta); jMeta(); Data.touch(cur);
+  });
+  ta.addEventListener('blur', () => { if (Data.dirty.size) scheduleSave(200); renderCal(); });
+
+  $('#status').onclick = () => {
+    if (statusState === 'err') toast(lastErr || '오류', 5000);
+    else if (statusState === 'off') openSettings();
+    else if (Data.dirty.size) flush();
+    else refresh(true);
+  };
+  // 검색
+  $('#bSearch').onclick = openSearch;
+  let qt; $('#q').addEventListener('input', () => { clearTimeout(qt); qt = setTimeout(doSearch, 250); });
+  // 설정
+  $('#bSet').onclick = () => openSettings();
+  document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('.ov').classList.remove('on'));
+  document.querySelectorAll('.ov').forEach(o => o.addEventListener('click', e => { if (e.target === o) o.classList.remove('on'); }));
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.ov.on').forEach(o => o.classList.remove('on')); });
+  document.querySelectorAll('input[name=mode]').forEach(r => r.addEventListener('change', async () => {
+    S.mode = r.value; saveSettings(); syncSettingsUI(); await connect();
+  }));
+  $('#pickFolder').onclick = async () => {
+    try { await FolderStore.pick(); S.mode = 'folder'; saveSettings(); syncSettingsUI(); await connect(); toast('폴더를 연결했습니다'); }
+    catch (e) { if (e.name !== 'AbortError') toast('폴더 선택 실패: ' + e.message, 4000); }
+  };
+  $('#clientId').onchange = () => { S.clientId = $('#clientId').value.trim(); saveSettings(); };
+  $('#tenant').onchange = () => { S.tenant = $('#tenant').value; saveSettings(); Auth.tok = null; syncSettingsUI(); };
+  $('#login').onclick = () => {
+    S.clientId = $('#clientId').value.trim(); saveSettings();
+    if (!S.clientId) { toast('클라이언트 ID를 먼저 입력하세요'); return; }
+    if (location.protocol === 'file:') { toast('https 주소에서 열어야 로그인할 수 있습니다', 3500); return; }
+    S.mode = 'cloud'; saveSettings(); Auth.login();
+  };
+  $('#logout').onclick = async () => { Auth.tok = null; S.appFolder = null; saveSettings(); syncSettingsUI(); if (S.mode === 'cloud') await connect(); toast('로그아웃했습니다'); };
+  $('#exportBtn').onclick = exportAll;
+  $('#importFile').onchange = importFile;
+
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh(); else if (Data.dirty.size) flush(); });
+  window.addEventListener('online', () => { if (Data.dirty.size) flush(); });
+  window.addEventListener('beforeunload', e => { if (Data.dirty.size) { flush(); e.preventDefault(); e.returnValue = ''; } });
+  setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 60000);
+}
+
+/* 다른 기기에서 바뀐 내용 반영 */
+async function refresh(manual) {
+  if (!Data.ready || Data.saving) return;
+  const editing = document.activeElement && document.activeElement.closest && document.activeElement.closest('#dayCard') && document.activeElement.matches('input,textarea');
+  if (editing && !manual) return;
+  try {
+    if (Data.dirty.size) await flush();
+    setStatus('loading');
+    const yms = new Set([ymOf(cur), viewYm, ymOf(addDays(cur, -1))]);
+    for (const ym of yms) await Data.load(ym, true);
+    setStatus(Data.dirty.size ? 'dirty' : 'ok');
+    renderCal(); if (!editing) renderDay();
+    if (manual) toast('최신 내용으로 새로 고쳤습니다');
+  } catch (e) { handleErr(e); }
+}
+
+/* ---------- 검색 ---------- */
+let allLoaded = false;
+function openSearch() { $('#ovSearch').classList.add('on'); setTimeout(() => $('#q').focus(), 50); loadAllMonths(); }
+async function loadAllMonths() {
+  if (allLoaded || !Data.ready) return;
+  $('#qInfo').textContent = '전체 기록을 불러오는 중…';
+  try {
+    const names = (await Data.store.list()).filter(n => MAIN_RE.test(n));
+    for (const n of names) await Data.load(n.slice(0, 7));
+    allLoaded = true; $('#qInfo').textContent = `${names.length}개월 기록에서 검색합니다.`;
+  } catch (e) { $('#qInfo').textContent = '일부 기록을 불러오지 못했습니다: ' + e.message; }
+  doSearch();
+}
+function doSearch() {
+  const q = $('#q').value.trim().toLowerCase(), out = $('#qRes');
+  if (!q) { out.innerHTML = ''; return; }
+  const hits = [];
+  for (const ym in Data.months) for (const [ds, d] of Object.entries(Data.months[ym].days)) {
+    const parts = [];
+    for (const i of Object.values(d.items || {})) if (!i.del && i.title.toLowerCase().includes(q)) parts.push((i.kind === 'event' ? '🕘 ' + (i.time ? i.time + ' ' : '') : '✅ ') + i.title);
+    const t = (d.journal && d.journal.t) || '', k = t.toLowerCase().indexOf(q);
+    if (k >= 0) parts.push('✍️ ' + (k > 30 ? '…' : '') + t.slice(Math.max(0, k - 30), k + q.length + 50).replace(/\n/g, ' '));
+    if (parts.length) hits.push([ds, parts]);
+  }
+  hits.sort((a, b) => b[0].localeCompare(a[0]));
+  const hl = s => esc(s).replace(new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/[&<>"']/g, c => esc(c)), 'gi'), m => `<mark>${m}</mark>`);
+  out.innerHTML = hits.length ? hits.slice(0, 200).map(([ds, ps]) => { const dt = parseYmd(ds); return `<div class="res" data-d="${ds}"><b>${ds} (${WD[dt.getDay()]})</b>${ps.slice(0, 4).map(p => `<div>${hl(p)}</div>`).join('')}</div>`; }).join('') : '<div class="empty">검색 결과가 없습니다.</div>';
+  out.querySelectorAll('.res').forEach(r => r.onclick = () => { $('#ovSearch').classList.remove('on'); goDate(r.dataset.d); });
+}
+
+/* ---------- 설정 화면 ---------- */
+function openSettings() { syncSettingsUI(); $('#ovSet').classList.add('on'); }
+function syncSettingsUI() {
+  document.querySelectorAll('input[name=mode]').forEach(r => r.checked = r.value === S.mode);
+  document.querySelectorAll('.opt').forEach(o => o.classList.toggle('on', o.dataset.mode === S.mode));
+  $('#fsUnsupported').classList.toggle('hide', FolderStore.supported());
+  $('#pickFolder').disabled = !FolderStore.supported();
+  $('#folderName').textContent = FolderStore.dir ? '현재: ' + FolderStore.dir.name : '';
+  $('#httpsNeeded').classList.toggle('hide', location.protocol !== 'file:');
+  $('#clientId').value = S.clientId; $('#tenant').value = S.tenant;
+  $('#appFolder').textContent = S.appFolder ? 'OneDrive/Apps/' + S.appFolder.name : '로그인하면 표시됩니다';
+  $('#redir').textContent = location.protocol === 'file:' ? '(https 주소로 열면 표시됩니다)' : Auth.redirectUri();
+  $('#loginState').textContent = Auth.tok ? '로그인됨' : '';
+}
+
+/* ---------- 백업 ---------- */
+async function exportAll() {
+  if (Data.ready) { try { const names = (await Data.store.list()).filter(n => MAIN_RE.test(n)); for (const n of names) await Data.load(n.slice(0, 7)); } catch (e) { } }
+  const blob = new Blob([JSON.stringify({ app: 'dailylog-backup', v: 1, at: new Date().toISOString(), months: Data.months }, null, 1)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `나의하루_백업_${ymd(new Date())}.json`;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+async function importFile(e) {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const o = JSON.parse(await f.text());
+    const months = o.app === 'dailylog-backup' ? o.months : (o.app === 'dailylog' ? { [o.month]: o } : null);
+    if (!months) throw new Error('이 앱의 백업 파일이 아닙니다');
+    let n = 0;
+    for (const ym in months) { await ensureLoaded(ym); Data.months[ym] = mergeMonth(Data.months[ym], months[ym]); Data.dirty.add(ym); Data.rev[ym] = (Data.rev[ym] || 0) + 1; n++; }
+    savePending(); renderAll(); scheduleSave(100); toast(`${n}개월 분량을 병합했습니다`);
+  } catch (err) { toast('가져오기 실패: ' + err.message, 4000); }
+}
+
+/* ---------- 연결 ---------- */
+async function connect() {
+  Data.reset(); allLoaded = false; banner(null);
+  const st = STORES[S.mode]; Data.store = st || null;
+  if (!st) { renderAll(); setStatus('off'); openSettings(); return; }
+  restorePending();
+  let r; try { r = await st.init(); } catch (e) { r = 'err'; lastErr = e.message; }
+  if (r !== 'ok') {
+    renderAll(); setStatus('off');
+    const msgs = {
+      unsupported: ['이 브라우저는 PC 폴더 저장을 지원하지 않습니다. Edge·Chrome(PC)을 쓰거나 OneDrive 클라우드 모드를 쓰세요.', '설정', openSettings],
+      nofolder: ['저장할 OneDrive 폴더를 선택해 주세요.', '폴더 선택', () => $('#pickFolder').click()],
+      needperm: [`보안을 위해 브라우저를 새로 열 때마다 폴더 접근 허용이 필요합니다. (📁 ${FolderStore.dir && FolderStore.dir.name})`, '폴더 접근 허용', async () => { try { if (await FolderStore.regrant()) await connect(); } catch (e) { toast(e.message, 4000); } }],
+      needhttps: ['클라우드 모드는 https 웹 주소에서 열어야 합니다.', '설정', openSettings],
+      noclient: ['OneDrive 클라우드 연결을 위해 클라이언트 ID를 입력해 주세요.', '설정', openSettings],
+      nologin: ['OneDrive에 로그인해 주세요.', 'Microsoft 로그인', () => { if (S.clientId) Auth.login(); else openSettings(); }],
+      err: ['저장소 연결 오류: ' + lastErr, '설정', openSettings]
+    }[r];
+    banner(...msgs);
+    return;
+  }
+  Data.ready = true; setStatus('loading'); renderAll();
+  try {
+    if (S.mode === 'cloud') await CloudStore.info();
+    await Data.load(ymOf(cur), true); await Data.load(ymOf(addDays(cur, -1)));
+    if (viewYm !== ymOf(cur)) await Data.load(viewYm);
+    setStatus(Data.dirty.size ? 'dirty' : 'ok');
+  } catch (e) { handleErr(e); }
+  renderAll();
+  if (Data.dirty.size) flush();
+  absorbConflicts();
+}
+
+(async function boot() {
+  bindUI();
+  try { if (await Auth.handleRedirect()) { S.mode = 'cloud'; saveSettings(); toast('OneDrive에 로그인했습니다'); } }
+  catch (e) { toast(e.message, 5000); }
+  await connect();
+})();
+</script>
+</body>
+</html>
