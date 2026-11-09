@@ -280,10 +280,11 @@ function toast(msg, ms = 2200) { const t = $('#toast'); t.textContent = msg; t.c
 function hhmm(ts) { const d = new Date(ts); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 
 /* ---------- 설정 ---------- */
-const APP_CLIENT_ID = 'e8db4897-d5cd-473a-b806-72a31752ec68';  // Azure 앱 등록 '나의하루' (공개되어도 되는 값)
+const APP_CLIENT_ID = '2db6d7b4-a47b-4b4f-84a7-397c62370304';  // Azure 앱 등록 '나의하루' (공개되어도 되는 값)
 const DEF = { mode: '', clientId: APP_CLIENT_ID, tenant: 'consumers', appFolder: null };
 let S = Object.assign({}, DEF, lsGet('dl_settings') || {});
-if (!S.clientId) S.clientId = APP_CLIENT_ID;
+// 이전에 잘못 입력된 ID(개체/테넌트 ID)가 저장된 기기는 새 ID로 교체
+if (!S.clientId || S.clientId === 'e8db4897-d5cd-473a-b806-72a31752ec68') { S.clientId = APP_CLIENT_ID; lsSet('dl_tok', null); lsSet('dl_settings', S); }
 // 웹 주소(https)로 처음 열면 OneDrive 클라우드 모드로 시작 (PC 파일로 열면 기존처럼 설정 화면)
 if (!S.mode && location.protocol === 'https:') S.mode = 'cloud';
 const saveSettings = () => lsSet('dl_settings', S);
