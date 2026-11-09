@@ -107,6 +107,10 @@ section.part h3 .cnt{font-weight:400}
 .cathead .cnt{font-size:12px;color:var(--sub)}
 .cat .add{margin-top:4px}
 .cat .add input.title{padding:6px 10px;font-size:15px}
+.mv{display:flex;flex-direction:column;flex:none}
+.mv button{border:0;background:none;color:var(--sub);font-size:11px;line-height:1;width:26px;height:17px;border-radius:5px;padding:0}
+.mv button:hover:not(:disabled){background:var(--chip);color:var(--brand2)}
+.mv button:disabled{opacity:.25;cursor:default}
 .boardTools{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .boardEmpty{border:1px dashed var(--line);border-radius:12px;padding:14px;font-size:14px;color:var(--sub);line-height:1.6}
 #txt{width:100%;min-height:300px;border:1px solid var(--line);border-radius:12px;padding:10px;font-size:14px;line-height:1.55;background:var(--card);font-family:inherit}
@@ -683,13 +687,23 @@ function renderBoard() {
       <div class="cathead"><input class="catname" value="${esc(c)}" aria-label="구분 이름">
         <span class="cnt">${list.filter(i => !i.done).length || ''}</span>
         ${ci ? '<button class="del" data-up title="위로">↑</button>' : ''}<button class="del" data-delcat title="구분 삭제">×</button></div>
-      ${list.map(i => `<div class="row ${i.done ? 'done' : ''}" data-id="${i.id}">
+      ${list.map((i, k) => `<div class="row ${i.done ? 'done' : ''}" data-id="${i.id}">
+        <span class="mv"><button data-mv="-1" title="위로" ${k ? '' : 'disabled'}>▲</button><button data-mv="1" title="아래로" ${k < list.length - 1 ? '' : 'disabled'}>▼</button></span>
         <input type="checkbox" ${i.done ? 'checked' : ''} data-f="done" aria-label="완료(다음날 이월 안 함)">
         <textarea class="title" rows="1" data-f="title">${esc(i.title)}</textarea>
         <button class="del" data-del title="삭제">×</button></div>`).join('')}
       <div class="add"><input class="title" placeholder="${esc(c)}에 추가" enterkeyhint="done"><button class="btn small" data-addw>추가</button></div>
     </div>`;
   }).join('');
+}
+function moveWork(id, dir) {
+  const it = Data.day(cur).items[id]; if (!it) return;
+  const list = itemsOf(cur, 'work').filter(i => i.cat === it.cat).sort((a, b) => (a.c || 0) - (b.c || 0));
+  const k = list.findIndex(i => i.id === id), j = k + dir; if (j < 0 || j >= list.length) return;
+  let a = list[k].c || 0, b = list[j].c || 0; if (a === b) b = a + dir;
+  upsertItem(cur, list[k].id, { c: b }); upsertItem(cur, list[j].id, { c: a });
+  renderDay();
+  const btn = document.querySelector(`#board [data-id="${CSS.escape(id)}"] [data-mv="${dir}"]`); if (btn && !btn.disabled) btn.focus();
 }
 function addWork(cat, title) {
   title = title.trim(); if (!title) return;
@@ -707,6 +721,8 @@ function bindBoard() {
   const box = $('#board');
   box.addEventListener('click', e => {
     const cat = e.target.closest('[data-cat]'); if (!cat) return; const name = cat.dataset.cat;
+    const mv = e.target.closest('[data-mv]');
+    if (mv) { moveWork(mv.closest('[data-id]').dataset.id, +mv.dataset.mv); return; }
     if (e.target.closest('[data-addw]')) { const inp = cat.querySelector('.add input'); addWork(name, inp.value); renderDay(); const n = $('#board').querySelector(`[data-cat="${CSS.escape(name)}"] .add input`); if (n) n.focus(); }
     else if (e.target.closest('[data-up]')) { const c = catsOf(cur), k = c.indexOf(name); if (k > 0) { [c[k - 1], c[k]] = [c[k], c[k - 1]]; setCats(cur, c); renderDay(); } }
     else if (e.target.closest('[data-delcat]')) {
