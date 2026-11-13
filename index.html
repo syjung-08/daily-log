@@ -363,39 +363,51 @@ const Auth = {
   get tok() { return lsGet('dl_tok'); }, set tok(v) { lsSet('dl_tok', v); },
   redirectUri() { return location.origin + location.pathname.replace(/index\.html?$/i, ''); },  // .../index.html 과 .../ 를 같은 주소로
   base() { return `https://login.microsoftonline.com/${S.tenant || 'consumers'}/oauth2/v2.0`; },
-  async login() {
+  // silent=true: 저장된 Microsoft 로그인 세션으로 화면 입력 없이 재발급 (prompt=none)
+  async login(silent) {
     const v = b64url(crypto.getRandomValues(new Uint8Array(48)));
     const ch = b64url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v))));
     const st = b64url(crypto.getRandomValues(new Uint8Array(16)));
-    sessionStorage.setItem('dl_pkce', JSON.stringify({ v, st }));
-    const p = new URLSearchParams({ client_id: S.clientId, response_type: 'code', redirect_uri: this.redirectUri(), response_mode: 'query', scope: this.SCOPE, code_challenge: ch, code_challenge_method: 'S256', state: st, prompt: 'select_account' });
+    sessionStorage.setItem('dl_pkce', JSON.stringify({ v, st, silent: !!silent }));
+    if (silent) lsSet('dl_silent_at', now());
+    const p = new URLSearchParams({ client_id: S.clientId, response_type: 'code', redirect_uri: this.redirectUri(), response_mode: 'query', scope: this.SCOPE, code_challenge: ch, code_challenge_method: 'S256', state: st, prompt: silent ? 'none' : 'select_account' });
     location.href = this.base() + '/authorize?' + p;
   },
   async handleRedirect() {
     const q = new URLSearchParams(location.search);
     if (!q.has('code') && !q.has('error')) return false;
     history.replaceState(null, '', location.pathname);
-    if (q.has('error')) throw new Error('로그인 실패: ' + (q.get('error_description') || q.get('error')));
     const saved = JSON.parse(sessionStorage.getItem('dl_pkce') || 'null');
     sessionStorage.removeItem('dl_pkce');
+    if (q.has('error')) { if (saved && saved.silent) return 'silentfail'; throw new Error('로그인 실패: ' + (q.get('error_description') || q.get('error'))); }
     if (!saved || saved.st !== q.get('state')) throw new Error('로그인 확인값이 맞지 않습니다. 다시 로그인해 주세요.');
     await this.tokenReq({ grant_type: 'authorization_code', code: q.get('code'), redirect_uri: this.redirectUri(), code_verifier: saved.v });
-    return true;
+    return saved.silent ? 'silent' : true;
   },
   async tokenReq(params) {
     const body = new URLSearchParams(Object.assign({ client_id: S.clientId, scope: this.SCOPE }, params));
-    const r = await fetch(this.base() + '/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
+    let r; try { r = await fetch(this.base() + '/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body }); }
+    catch (e) { e.net = true; throw e; }  // 오프라인 등 네트워크 오류: 로그인 정보는 유지
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error_description || j.error || ('토큰 오류 ' + r.status));
     const old = this.tok || {};
     this.tok = { at: j.access_token, rt: j.refresh_token || old.rt, exp: now() + (j.expires_in || 3600) * 1000 };
+    lsSet('dl_was_login', 1);
+  },
+  // Microsoft 정책상 SPA 로그인은 24시간마다 만료 → 입력 중이 아니면 자동으로 조용히 재로그인 (10분에 1회 이하)
+  trySilent() {
+    if (location.protocol !== 'https:' || !S.clientId || !lsGet('dl_was_login')) return false;
+    if (now() - (lsGet('dl_silent_at') || 0) < 10 * 60 * 1000) return false;
+    const a = document.activeElement; if (a && a.matches && a.matches('input,textarea') && a.closest('#dayCard')) return false;
+    if (document.querySelector('.ov.on')) return false;
+    savePending(); this.login(true); return true;
   },
   async token(force) {
     const t = this.tok; if (!t) throw needLogin();
     if (!force && t.exp - 120000 > now()) return t.at;
     if (!t.rt) throw needLogin();
     try { await this.tokenReq({ grant_type: 'refresh_token', refresh_token: t.rt }); }
-    catch (e) { this.tok = null; throw needLogin(); }
+    catch (e) { if (e.net) throw e; this.tok = null; throw needLogin(); }
     return this.tok.at;
   }
 };
@@ -559,6 +571,7 @@ function setStatus(st, msg) {
 }
 function handleErr(e) {
   console.error(e);
+  if (e && e.code === 'LOGIN' && Auth.trySilent()) { setStatus('loading'); banner('로그인을 자동으로 갱신하는 중입니다…'); return; }
   if (e && e.code === 'LOGIN') { setStatus('err', e.message); banner('OneDrive 로그인이 만료되었습니다. 입력한 내용은 이 기기에 보관 중입니다.', 'Microsoft 로그인', () => Auth.login()); return; }
   if (!navigator.onLine) { setStatus('dirty'); lastErr = '오프라인 — 연결되면 자동 저장합니다.'; return; }
   setStatus('err', (e && e.message) || String(e));
@@ -908,7 +921,7 @@ function bindUI() {
     if (location.protocol === 'file:') { toast('https 주소에서 열어야 로그인할 수 있습니다', 3500); return; }
     S.mode = 'cloud'; saveSettings(); Auth.login();
   };
-  $('#logout').onclick = async () => { Auth.tok = null; S.appFolder = null; saveSettings(); syncSettingsUI(); if (S.mode === 'cloud') await connect(); toast('로그아웃했습니다'); };
+  $('#logout').onclick = async () => { Auth.tok = null; lsSet('dl_was_login', null); S.appFolder = null; saveSettings(); syncSettingsUI(); if (S.mode === 'cloud') await connect(); toast('로그아웃했습니다'); };
   $('#exportBtn').onclick = exportAll;
   $('#importFile').onchange = importFile;
 
@@ -1012,6 +1025,7 @@ async function connect() {
   if (!st) { renderAll(); setStatus('off'); openSettings(); return; }
   restorePending();
   let r; try { r = await st.init(); } catch (e) { r = 'err'; lastErr = e.message; }
+  if (r === 'nologin' && Auth.trySilent()) { renderAll(); setStatus('loading'); banner('로그인을 자동으로 갱신하는 중입니다…'); return; }
   if (r !== 'ok') {
     renderAll(); setStatus('off');
     const msgs = {
@@ -1041,7 +1055,11 @@ async function connect() {
 
 (async function boot() {
   bindUI();
-  try { if (await Auth.handleRedirect()) { S.mode = 'cloud'; saveSettings(); toast('OneDrive에 로그인했습니다'); } }
+  try {
+    const r = await Auth.handleRedirect();
+    if (r === true) { S.mode = 'cloud'; saveSettings(); toast('OneDrive에 로그인했습니다'); }
+    else if (r === 'silent') toast('로그인을 자동으로 갱신했습니다');
+  }
   catch (e) { toast(e.message, 5000); }
   await connect();
 })();
