@@ -444,15 +444,32 @@ const CloudStore = {
     if (r.status === 404) return null;
     if (!r.ok) throw await gErr(r);
     const url = (await r.json())['@microsoft.graph.downloadUrl'];
-    let r2 = null;
-    // 내려받기 서버가 응답하지 않으면 무한 대기하지 않도록 15초 제한
-    const dl = async (u, opt) => { const c = new AbortController(), t = setTimeout(() => c.abort(), 15000);
-      try { return await fetch(u, Object.assign({ cache: 'no-store', signal: c.signal }, opt)); } finally { clearTimeout(t); } };
-    if (url) { try { r2 = await dl(url); } catch (e) { r2 = null; } }
-    if (!r2 || !r2.ok) { try { r2 = await dl(`${G}:/${encodeURIComponent(n)}:/content`, { headers: { Authorization: 'Bearer ' + await Auth.token() } }); }
-      catch (e) { throw new Error('OneDrive에서 기록 파일을 내려받지 못했습니다(응답 없음). 이 브라우저가 파일 내려받기를 막고 있을 수 있습니다.'); } }
-    if (!r2.ok) throw await gErr(r2);
-    return await r2.text();
+    // 내려받기 방식 여러 가지를 차례로 시도(각 10초 제한) → 성공한 방식을 기억해 다음부터 먼저 사용
+    const LIM = 10000;
+    const ff = async (u, opt) => { const c = new AbortController(), t = setTimeout(() => c.abort(), LIM);
+      try { return await fetch(u, Object.assign({ signal: c.signal }, opt)); } finally { clearTimeout(t); } };
+    const xhr = u => new Promise((res, rej) => { const x = new XMLHttpRequest(); x.open('GET', u); x.timeout = LIM;
+      x.onload = () => res({ ok: x.status >= 200 && x.status < 300, status: x.status, text: async () => x.responseText });
+      x.onerror = () => rej(new Error('network')); x.ontimeout = () => rej(new Error('timeout')); x.send(); });
+    const ways = {
+      plain: () => ff(url),
+      nostore: () => ff(url, { cache: 'no-store' }),
+      xhr: () => xhr(url),
+      graph: async () => ff(`${G}:/${encodeURIComponent(n)}:/content`, { headers: { Authorization: 'Bearer ' + await Auth.token() } })
+    };
+    const pref = lsGet('dl_read_way');
+    const order = [pref, 'plain', 'xhr', 'nostore', 'graph'].filter((w, i, a) => w && ways[w] && a.indexOf(w) === i && (url || w === 'graph'));
+    const diag = [];
+    for (const w of order) {
+      const t0 = performance.now();
+      try {
+        const res = await ways[w]();
+        if (res.ok) { const txt = await res.text(); if (pref !== w) lsSet('dl_read_way', w); window.__dlDiag = diag.concat(w + ':성공'); return txt; }
+        diag.push(`${w}:HTTP${res.status}`);
+      } catch (e) { diag.push(`${w}:${e.name === 'AbortError' || /timeout/.test(e.message) ? '응답없음' : '차단/네트워크'}(${Math.round((performance.now() - t0) / 1000)}초)`); }
+    }
+    window.__dlDiag = diag;
+    throw new Error('OneDrive에서 기록 파일을 내려받지 못했습니다 [' + diag.join(', ') + ']');
   },
   async write(n, t) {
     const r = await this.api(`${G}:/${encodeURIComponent(n)}:/content`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: t });
