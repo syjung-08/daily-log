@@ -579,6 +579,7 @@ function handleErr(e) {
   if (e && e.code === 'LOGIN') { setStatus('err', e.message); banner('OneDrive 로그인이 만료되었습니다. 입력한 내용은 이 기기에 보관 중입니다.', 'Microsoft 로그인', () => Auth.login()); return; }
   if (!navigator.onLine) { setStatus('dirty'); lastErr = '오프라인 — 연결되면 자동 저장합니다.'; return; }
   setStatus('err', (e && e.message) || String(e));
+  banner('저장소 오류: ' + lastErr, '다시 시도', () => { banner(null); refresh(true); });
 }
 function banner(msg, btn, fn) {
   const b = $('#banner'); if (!msg) { b.style.display = 'none'; return; }
