@@ -445,8 +445,12 @@ const CloudStore = {
     if (!r.ok) throw await gErr(r);
     const url = (await r.json())['@microsoft.graph.downloadUrl'];
     let r2 = null;
-    if (url) { try { r2 = await fetch(url, { cache: 'no-store' }); } catch (e) { r2 = null; } }
-    if (!r2 || !r2.ok) r2 = await this.api(`${G}:/${encodeURIComponent(n)}:/content`);
+    // 내려받기 서버가 응답하지 않으면 무한 대기하지 않도록 15초 제한
+    const dl = async (u, opt) => { const c = new AbortController(), t = setTimeout(() => c.abort(), 15000);
+      try { return await fetch(u, Object.assign({ cache: 'no-store', signal: c.signal }, opt)); } finally { clearTimeout(t); } };
+    if (url) { try { r2 = await dl(url); } catch (e) { r2 = null; } }
+    if (!r2 || !r2.ok) { try { r2 = await dl(`${G}:/${encodeURIComponent(n)}:/content`, { headers: { Authorization: 'Bearer ' + await Auth.token() } }); }
+      catch (e) { throw new Error('OneDrive에서 기록 파일을 내려받지 못했습니다(응답 없음). 이 브라우저가 파일 내려받기를 막고 있을 수 있습니다.'); } }
     if (!r2.ok) throw await gErr(r2);
     return await r2.text();
   },
